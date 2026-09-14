@@ -9,8 +9,19 @@ from typing import Any, Dict, List, Tuple
 import boto3
 import requests
 from celery import Celery, Task
+from celery.utils.log import get_task_logger
 
 from db.db import connect_to_database, add_death_db, update_death_image_url_db, update_death_message_id_db, delete_death_db
+
+logger = get_task_logger(__name__)
+
+
+def _log_task_event(task_name: str, event: str) -> None:
+    logger.info(json.dumps({
+        "timestamp": time.time(),
+        "task": task_name,
+        "event": event,
+    }))
 
 CELERY_BROKER = os.getenv("CELERY_BROKER")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
@@ -48,6 +59,8 @@ def add_death_to_db(
     timestamp: Number,
     reporter: str,
 ) -> int:
+    _log_task_event("add_death_to_db", "start")
+
     conn = connect_to_database(DATABASE_PATH)
     cursor = conn.cursor()
 
@@ -66,11 +79,15 @@ def add_death_to_db(
     conn.commit()
     conn.close()
 
+    _log_task_event("add_death_to_db", "end")
+
     return { "rowid": rowid }
     
 
 @app.task
 def download_image_and_upload_to_s3(source_url: str) -> Dict:
+    _log_task_event("download_image_and_upload_to_s3", "start")
+
     s3 = boto3.resource("s3")
 
     image_name = os.path.basename(urlparse(source_url).path)
@@ -90,29 +107,37 @@ def download_image_and_upload_to_s3(source_url: str) -> Dict:
     encoded_image = base64.b64encode(response.content).decode("utf-8")
     s3_url = f"https://{S3_BUCKET}.s3.ca-central-1.amazonaws.com/{key}"
 
+    _log_task_event("download_image_and_upload_to_s3", "end")
+
     return { "image": (file_name, content_type, encoded_image, s3_url) }
 
 # combines results from a Celery group into a Dict to passed to future Tasks as a single Dict
 @app.task
 def gather_results(results: List[Dict], **kwargs) -> Dict:
+    _log_task_event("gather_results", "start")
+
     for task_result in results:
         for key in task_result.keys():
             if key in kwargs:
                 raise ValueError(f"duplicate key encountered: {key}")
-            
+
             kwargs[key] = task_result[key]
-    
+
+    _log_task_event("gather_results", "end")
+
     return kwargs
 
 
 @app.task
 def update_database_with_image(input: Dict):
+    _log_task_event("update_database_with_image", "start")
+
     rowid: int = input.get("rowid", None)
     image = input.get("image", None)
 
     if not rowid or not image:
         raise ValueError("missing argument")
-    
+
     _, _, _, new_url = image
     if not new_url:
         raise ValueError("missing image field")
@@ -124,11 +149,15 @@ def update_database_with_image(input: Dict):
     conn.commit()
     conn.close()
 
+    _log_task_event("update_database_with_image", "end")
+
 
 # update_interaction_with_image is chained from download_image_and_upload_to_s3,
 # so file_name, image_content and new_url has to be first
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
 def update_interaction_with_image(input: Dict):
+    _log_task_event("update_interaction_with_image", "start")
+
     image: Tuple[str, str, str, str] = input.get("image", None)
     interaction_token: str = input.get("interaction_token", None)
 
@@ -152,9 +181,13 @@ def update_interaction_with_image(input: Dict):
 
     response.raise_for_status()
 
+    _log_task_event("update_interaction_with_image", "end")
+
 
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
 def update_database_with_message_id(input: Dict):
+    _log_task_event("update_database_with_message_id", "start")
+
     rowid: int = input.get("rowid", None)
     interaction_token: str = input.get("interaction_token", None)
 
@@ -176,9 +209,13 @@ def update_database_with_message_id(input: Dict):
     conn.commit()
     conn.close()
 
+    _log_task_event("update_database_with_message_id", "end")
+
 
 @app.task
 def delete_from_database(rowid: str):
+    _log_task_event("delete_from_database", "start")
+
     conn = connect_to_database(DATABASE_PATH)
     cursor = conn.cursor()
 
@@ -186,9 +223,13 @@ def delete_from_database(rowid: str):
     conn.commit()
     conn.close()
 
+    _log_task_event("delete_from_database", "end")
+
 
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
 def update_death_message(channel_id: str, message_id: str, new_content: str):
+    _log_task_event("update_death_message", "start")
+
     response = requests.patch(
         f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}",
         json={
@@ -198,3 +239,5 @@ def update_death_message(channel_id: str, message_id: str, new_content: str):
     )
 
     response.raise_for_status()
+
+    _log_task_event("update_death_message", "end")
