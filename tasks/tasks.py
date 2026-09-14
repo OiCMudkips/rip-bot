@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 import time
 from numbers import Number
@@ -17,7 +18,15 @@ CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
 if not CELERY_RESULT_BACKEND:
     raise ValueError("Missing CELERY_RESULT_BACKEND value.")
 
-app = Celery("tasks", broker=CELERY_BROKER)
+# expected to be a JSON object, e.g. {"region": "ca-central-1"}
+CELERY_BROKER_TRANSPORT_OPTIONS = os.getenv("CELERY_BROKER_TRANSPORT_OPTIONS")
+broker_transport_options = {}
+if CELERY_BROKER_TRANSPORT_OPTIONS:
+    broker_transport_options = json.loads(CELERY_BROKER_TRANSPORT_OPTIONS)
+    if not isinstance(broker_transport_options, dict):
+        raise ValueError("CELERY_BROKER_TRANSPORT_OPTIONS must be a JSON object.")
+
+app = Celery("tasks", broker=CELERY_BROKER, broker_transport_options=broker_transport_options)
 app.conf.worker_cancel_long_running_tasks_on_connection_loss = True # disable warning message in 5.1 <= Celery ver. < 6.0
 
 DATABASE_PATH = os.getenv("DATABASE_PATH")
