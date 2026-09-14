@@ -62,6 +62,16 @@ def add_death(req: Any):
     resolved_attachment = req["data"]["resolved"]["attachments"][options["image"]]
     image_url = resolved_attachment["url"]
 
+    log_object = {
+        "event": "add_death_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "victim": options["dead-person"],
+    }
+    app.logger.info(python_json.dumps(log_object))
+
     (
         group(
             app_tasks.add_death_to_db.s(
@@ -88,9 +98,9 @@ def add_death(req: Any):
             # in the first step, which serves as the delay
             app_tasks.update_database_with_message_id.s()
         )).delay()
-    
+
     log_object = {
-        "event": "add_death",
+        "event": "add_death_completed",
         "guild_id": req["guild_id"],
         "actor": req["member"]["user"]["id"],
         "channel": req["channel_id"],
@@ -129,6 +139,16 @@ def remove_death(req: Any):
         }
 
     guild_id, channel_id, message_id = parsed_death_message_url
+
+    log_object = {
+        "event": "remove_death_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "target_message_id": message_id,
+    }
+    app.logger.info(python_json.dumps(log_object))
 
     if req["guild_id"] != guild_id:
         return {
@@ -174,12 +194,12 @@ def remove_death(req: Any):
     ).delay()
 
     log_object = {
-        "event": "remove_death",
+        "event": "remove_death_completed",
         "guild_id": req["guild_id"],
         "actor": req["member"]["user"]["id"],
         "channel": req["channel_id"],
         "timestamp": time.time(),
-        "message_id": message_id,
+        "target_message_id": message_id,
     }
     app.logger.info(python_json.dumps(log_object))
 
@@ -197,6 +217,15 @@ def remove_death(req: Any):
 def tally_deaths(req: Any):
     options = convert_options_to_map(req["data"].get("options", {}))
     start_time, end_time = options.get("start-time", None), options.get("end-time", None)
+
+    log_object = {
+        "event": "tally_deaths_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
 
     conn = connect_to_database(DATABASE_PATH)
     cursor = conn.cursor()
@@ -240,6 +269,16 @@ def tally_deaths(req: Any):
         current_rank += 1
 
     content = "\n".join(lines_of_text)
+
+    log_object = {
+        "event": "tally_deaths_completed",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
+
 
     return {
         "type": 4,
