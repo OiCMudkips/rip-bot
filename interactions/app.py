@@ -308,5 +308,9 @@ def interactions_post():
             }
         })
 
+@app.get("/")
+def home_get():
+    return "Bot is running."
+
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=14625)
