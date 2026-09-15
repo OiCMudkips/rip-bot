@@ -490,7 +490,7 @@ def tally_pitchies(req: Any):
         result_by_person[person][-1] += pitchie_count
 
     result = []
-    for person, pitchie_counts in result_by_person:
+    for person, pitchie_counts in result_by_person.items():
         result.append((person, *pitchie_counts))
 
     def sort_by_count(result_entry):
