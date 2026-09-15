@@ -7,9 +7,9 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
 class PitchieType(IntEnum):
-    Brilliant = 1
-    Pitched = 2
-    Other = 3
+    Brilliant = 0
+    Pitched = 1
+    Other = 2
 
 
 class Base(DeclarativeBase):
@@ -127,20 +127,20 @@ def get_death_tally_time_db(session: Session, guild_id: str, start_time: int, en
     return session.execute(stmt).all()
 
 
-def get_pitchie_tally_db(session: Session, guild_id: str) -> Sequence[Tuple[str, int]]:
+def get_pitchie_tally_db(session: Session, guild_id: str) -> Sequence[Tuple[str, int, int]]:
     stmt = (
-        select(Pitchie.reporter, func.count(Pitchie.rowid))
+        select(Pitchie.reporter, Pitchie.pitchie_type, func.count(Pitchie.rowid))
         .where(Pitchie.server == guild_id)
-        .group_by(Pitchie.reporter)
+        .group_by(Pitchie.reporter, Pitchie.pitchie_type)
     )
     return session.execute(stmt).all()
 
 
 def get_pitchie_tally_time_db(session: Session, guild_id: str, start_time: int, end_time: int) -> Sequence[Tuple[str, int]]:
     stmt = (
-        select(Pitchie.reporter, func.count(Pitchie.rowid))
+        select(Pitchie.reporter, Pitchie.pitchie_type, func.count(Pitchie.rowid))
         .where(Pitchie.server == guild_id, Pitchie.timestamp.between(start_time, end_time))
-        .group_by(Pitchie.reporter)
+        .group_by(Pitchie.reporter, Pitchie.pitchie_type)
     )
     return session.execute(stmt).all()
 

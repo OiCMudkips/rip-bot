@@ -453,7 +453,7 @@ def tally_pitchies(req: Any):
     if start_time and end_time:
         try:
             start_time_p, end_time_p = time.mktime(time.strptime(start_time, "%Y-%m-%d")), time.mktime(time.strptime(end_time, "%Y-%m-%d"))
-            result = get_pitchie_tally_time_db(session, req["guild_id"], start_time_p, end_time_p)
+            db_result = get_pitchie_tally_time_db(session, req["guild_id"], start_time_p, end_time_p)
         except ValueError:
             return {
                 "type": 4,
@@ -462,7 +462,7 @@ def tally_pitchies(req: Any):
                 }
             }
     elif not start_time and not end_time:
-        result = get_pitchie_tally_db(session, req["guild_id"])
+        db_result = get_pitchie_tally_db(session, req["guild_id"])
     else:
         return {
             "type": 4,
@@ -473,8 +473,20 @@ def tally_pitchies(req: Any):
 
     session.close()
 
-    def sort_by_count(row):
-        return row[1]
+    result_by_person = {}
+    for person, pitchie_type, pitchie_count in db_result:
+        if person not in result_by_person:
+            result_by_person[person] = [0, 0, 0, 0] # one entry for each type of pitchie, then a total
+
+        result_by_person[person][pitchie_type] = pitchie_count
+        result_by_person[person][-1] += pitchie_count
+
+    result = []
+    for person, pitchie_counts in result_by_person.items():
+        result.append((person, *pitchie_counts))
+
+    def sort_by_count(result_entry):
+        return result_entry[-1]
 
     result.sort(key=sort_by_count, reverse=True)
 
@@ -484,8 +496,18 @@ def tally_pitchies(req: Any):
 
     lines_of_text = [f"**{header_text}**"]
     current_rank = 1
-    for person, pitchie_count in itertools.islice(result, 50):
-        lines_of_text.append(f"{current_rank}. <@{person}> - {pitchie_count}")
+    for person, brilliant_count, pitched_count, other_count, total_count in itertools.islice(result, 50):
+        subtotal_text = []
+        if brilliant_count > 0:
+            subtotal_text.append(f"{brilliant_count} Brilliant")
+
+        if pitched_count > 0:
+            subtotal_text.append(f"{pitched_count} Pitched")
+
+        if other_count > 0:
+            subtotal_text.append(f"{other_count} Other")
+
+        lines_of_text.append(f"{current_rank}. <@{person}> - {total_count} ({", ".join(subtotal_text)})")
         current_rank += 1
 
     content = "\n".join(lines_of_text)
