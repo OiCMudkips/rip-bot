@@ -93,6 +93,7 @@ def add_pitchie_to_db(
     attachment: str,
     image_url: str,
     timestamp: Number,
+    reporter: str,
 ) -> int:
     _log_task_event("add_pitchie_to_db", "start")
 
@@ -108,6 +109,7 @@ def add_pitchie_to_db(
         attachment,
         image_url,
         timestamp,
+        reporter,
     )
     conn.commit()
     conn.close()
