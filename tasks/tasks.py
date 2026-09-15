@@ -98,18 +98,17 @@ def download_image_and_upload_to_s3(source_url: str) -> Dict:
     response = requests.get(source_url)
     content_type = response.headers["content-type"]
 
-    object = s3.Bucket(S3_BUCKET).put_object(
+    s3.Bucket(S3_BUCKET).put_object(
         Key=key,
         Body=response.content,
         ContentType=content_type,
     )
     
-    encoded_image = base64.b64encode(response.content).decode("utf-8")
     s3_url = f"https://{S3_BUCKET}.s3.ca-central-1.amazonaws.com/{key}"
 
     _log_task_event("download_image_and_upload_to_s3", "end")
 
-    return { "image": (file_name, content_type, encoded_image, s3_url) }
+    return { "image": (file_name, content_type, s3_url) }
 
 # combines results from a Celery group into a Dict to passed to future Tasks as a single Dict
 @app.task
@@ -138,14 +137,14 @@ def update_database_with_image(input: Dict):
     if not rowid or not image:
         raise ValueError("missing argument")
 
-    _, _, _, new_url = image
-    if not new_url:
+    _, _, s3_url = image
+    if not s3_url:
         raise ValueError("missing image field")
 
     conn = connect_to_database(DATABASE_PATH)
     cursor = conn.cursor()
 
-    update_death_image_url_db(cursor, rowid, new_url)
+    update_death_image_url_db(cursor, rowid, s3_url)
     conn.commit()
     conn.close()
 
@@ -153,7 +152,7 @@ def update_database_with_image(input: Dict):
 
 
 # update_interaction_with_image is chained from download_image_and_upload_to_s3,
-# so file_name, image_content and new_url has to be first
+# so file_name, image_content and s3_url has to be first
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
 def update_interaction_with_image(input: Dict):
     _log_task_event("update_interaction_with_image", "start")
@@ -164,9 +163,11 @@ def update_interaction_with_image(input: Dict):
     if not image or not interaction_token:
         raise ValueError("missing image")
     
-    file_name, file_content_type, image_content, _ = image
-    if not file_name or not file_content_type or not image_content:
+    file_name, file_content_type, s3_url = image
+    if not file_name or not file_content_type or not s3_url:
         raise ValueError("missing image field")
+
+    image_content = requests.get(s3_url).content
 
     response = requests.patch(
         f"https://discord.com/api/v10/webhooks/{DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
@@ -175,7 +176,7 @@ def update_interaction_with_image(input: Dict):
         },
         headers={"Authorization": AUTHORIZATION},
         files={
-            "files[0]": (file_name, base64.b64decode(image_content.encode("utf-8")), file_content_type),
+            "files[0]": (file_name, image_content, file_content_type),
         },
     )
 
