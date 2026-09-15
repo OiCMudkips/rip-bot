@@ -329,8 +329,8 @@ def delete_pitchie_from_database(rowid: str):
 
 
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
-def update_death_message(channel_id: str, message_id: str, new_content: str):
-    _log_task_event("update_death_message", "start")
+def update_message_content(channel_id: str, message_id: str, new_content: str):
+    _log_task_event("update_message_content", "start")
 
     response = requests.patch(
         f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}",
@@ -342,4 +342,4 @@ def update_death_message(channel_id: str, message_id: str, new_content: str):
 
     response.raise_for_status()
 
-    _log_task_event("update_death_message", "end")
+    _log_task_event("update_message_content", "end")
