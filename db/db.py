@@ -1,8 +1,9 @@
-import sqlite3
-from enum import IntEnum
-from numbers import Number
 import secrets
-from typing import Dict, List, Tuple
+from enum import IntEnum
+from typing import Optional, Sequence, Tuple
+
+from sqlalchemy import Integer, String, create_engine, func, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
 class PitchieType(IntEnum):
@@ -11,161 +12,184 @@ class PitchieType(IntEnum):
     Other = 3
 
 
-INSERT_DEATH_SQL = """INSERT INTO deaths VALUES (:server, :channel_id, :message_id, :dead_person, :caption, :attachment, :image_url, :timestamp, :reporter)"""
-INSERT_PITCHIE_SQL = """INSERT INTO pitchies VALUES (:server, :channel_id, :message_id, :caption, :attachment, :image_url, :timestamp, :reporter, :pitchie_type)"""
-SELECT_DEADPERSON_COUNT_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE server = :guild_id GROUP BY dead_person"""
-SELECT_DEADPERSON_COUNT_BY_TIME_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY dead_person"""
-SELECT_PITCHIE_COUNT_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE server = :guild_id GROUP BY reporter"""
-SELECT_PITCHIE_COUNT_BY_TIME_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY reporter"""
-SELECT_DEADPERSON_SQL = """SELECT caption, attachment, timestamp, reporter FROM deaths WHERE server = :guild_id AND dead_person = :dead_person"""
-SELECT_DEADPERSON_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, dead_person, caption, reporter FROM deaths WHERE message_id = :message_id"""
-SELECT_PITCHIE_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, caption, reporter FROM pitchies WHERE message_id = :message_id"""
-UPDATE_DEATH_IMAGE_URL_SQL = """UPDATE deaths SET image_url = :image_url WHERE rowid = :rowid"""
-UPDATE_DEATH_MESSAGE_ID_SQL = """UPDATE deaths SET message_id = :message_id WHERE rowid = :rowid"""
-DELETE_BY_ROWID_SQL = """DELETE FROM deaths WHERE rowid = :rowid"""
-DELETE_PITCHIE_BY_ROWID_SQL = """DELETE FROM pitchies WHERE rowid = :rowid"""
-UPDATE_PITCHIE_IMAGE_URL_SQL = """UPDATE pitchies SET image_url = :image_url WHERE rowid = :rowid"""
-UPDATE_PITCHIE_MESSAGE_ID_SQL = """UPDATE pitchies SET message_id = :message_id WHERE rowid = :rowid"""
+class Base(DeclarativeBase):
+    pass
 
 
-def connect_to_database(path: str) -> sqlite3.Connection:
-    return sqlite3.connect(path)
+class Death(Base):
+    __tablename__ = "deaths"
+
+    rowid: Mapped[int] = mapped_column(Integer, primary_key=True)
+    server: Mapped[str] = mapped_column(String)
+    channel_id: Mapped[str] = mapped_column(String)
+    message_id: Mapped[str] = mapped_column(String)
+    dead_person: Mapped[str] = mapped_column(String)
+    caption: Mapped[str] = mapped_column(String)
+    attachment: Mapped[str] = mapped_column(String)
+    image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    timestamp: Mapped[int] = mapped_column(Integer)
+    reporter: Mapped[str] = mapped_column(String)
+
+
+class Pitchie(Base):
+    __tablename__ = "pitchies"
+
+    rowid: Mapped[int] = mapped_column(Integer, primary_key=True)
+    server: Mapped[str] = mapped_column(String)
+    channel_id: Mapped[str] = mapped_column(String)
+    message_id: Mapped[str] = mapped_column(String)
+    caption: Mapped[str] = mapped_column(String)
+    attachment: Mapped[str] = mapped_column(String)
+    image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    timestamp: Mapped[int] = mapped_column(Integer)
+    reporter: Mapped[str] = mapped_column(String)
+    pitchie_type: Mapped[int] = mapped_column(Integer)
+
+
+def connect_to_database(path: str) -> Session:
+    engine = create_engine(f"sqlite:///{path}")
+    return Session(engine)
 
 
 def add_death_db(
-    cursor: sqlite3.Cursor,
+    session: Session,
     server: str,
     channel_id: str,
     message_id: str,
     dead_person: str,
     caption: str,
-    attachment: any,
+    attachment: str,
     image_url: str,
-    timestamp: Number,
+    timestamp: int,
     reporter: str,
 ) -> int:
-    cursor.execute(
-        INSERT_DEATH_SQL,
-        {
-            "server": server,
-            "channel_id": channel_id,
-            "message_id": message_id,
-            "dead_person": dead_person,
-            "caption": caption,
-            "attachment": attachment,
-            "image_url": image_url,
-            "timestamp": timestamp,
-            "reporter": reporter,
-        },
+    death = Death(
+        server=server,
+        channel_id=channel_id,
+        message_id=message_id,
+        dead_person=dead_person,
+        caption=caption,
+        attachment=attachment,
+        image_url=image_url,
+        timestamp=timestamp,
+        reporter=reporter,
     )
+    session.add(death)
+    session.flush()
 
-    return cursor.lastrowid
+    return death.rowid
 
 
 def add_pitchie_db(
-    cursor: sqlite3.Cursor,
+    session: Session,
     server: str,
     channel_id: str,
     message_id: str,
     caption: str,
-    attachment: any,
+    attachment: str,
     image_url: str,
-    timestamp: Number,
+    timestamp: int,
     reporter: str,
     pitchie_type: PitchieType,
 ) -> int:
-    cursor.execute(
-        INSERT_PITCHIE_SQL,
-        {
-            "server": server,
-            "channel_id": channel_id,
-            "message_id": message_id,
-            "caption": caption,
-            "attachment": attachment,
-            "image_url": image_url,
-            "timestamp": timestamp,
-            "reporter": reporter,
-            "pitchie_type": int(pitchie_type),
-        },
+    pitchie = Pitchie(
+        server=server,
+        channel_id=channel_id,
+        message_id=message_id,
+        caption=caption,
+        attachment=attachment,
+        image_url=image_url,
+        timestamp=timestamp,
+        reporter=reporter,
+        pitchie_type=int(pitchie_type),
     )
+    session.add(pitchie)
+    session.flush()
 
-    return cursor.lastrowid
-
-
-def get_death_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int]]:
-    response = cursor.execute(SELECT_DEADPERSON_COUNT_SQL, {
-        "guild_id": guild_id,
-    })
-    return response.fetchall()
+    return pitchie.rowid
 
 
-def get_death_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
-    response = cursor.execute(SELECT_DEADPERSON_COUNT_BY_TIME_SQL, {
-        "start_time": start_time,
-        "end_time": end_time,
-        "guild_id": guild_id,
-    })
-    return response.fetchall()
-
-def get_pitchie_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int]]:
-    response = cursor.execute(SELECT_PITCHIE_COUNT_SQL, {
-        "guild_id": guild_id,
-    })
-    return response.fetchall()
+def get_death_tally_db(session: Session, guild_id: str) -> Sequence[Tuple[str, int]]:
+    stmt = (
+        select(Death.dead_person, func.count(Death.rowid))
+        .where(Death.server == guild_id)
+        .group_by(Death.dead_person)
+    )
+    return session.execute(stmt).all()
 
 
-def get_pitchie_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
-    response = cursor.execute(SELECT_PITCHIE_COUNT_BY_TIME_SQL, {
-        "start_time": start_time,
-        "end_time": end_time,
-        "guild_id": guild_id,
-    })
-    return response.fetchall()
+def get_death_tally_time_db(session: Session, guild_id: str, start_time: int, end_time: int) -> Sequence[Tuple[str, int]]:
+    stmt = (
+        select(Death.dead_person, func.count(Death.rowid))
+        .where(Death.server == guild_id, Death.timestamp.between(start_time, end_time))
+        .group_by(Death.dead_person)
+    )
+    return session.execute(stmt).all()
 
 
-def get_death_db(cursor: sqlite3.Cursor, guild_id: str, dead_person: str) -> Dict:
-    response = cursor.execute(SELECT_DEADPERSON_SQL, {
-        "guild_id": guild_id,
-        "dead_person": dead_person,
-    })
-    result = secrets.choice(response.fetchall())
-    return {
-        "caption": result[0],
-        "attachment": result[1],
-        "timestamp": result[2],
-        "reporter": result[3],
-    }
+def get_pitchie_tally_db(session: Session, guild_id: str) -> Sequence[Tuple[str, int]]:
+    stmt = (
+        select(Pitchie.reporter, func.count(Pitchie.rowid))
+        .where(Pitchie.server == guild_id)
+        .group_by(Pitchie.reporter)
+    )
+    return session.execute(stmt).all()
 
 
-def get_death_by_message_id_db(cursor: sqlite3.Cursor, message_id: str) -> Tuple:
-    response = cursor.execute(SELECT_DEADPERSON_BY_MESSAGE_ID, { "message_id": message_id })
-    return response.fetchone() # a message ID should only correspond to one death (fingers crossed)
+def get_pitchie_tally_time_db(session: Session, guild_id: str, start_time: int, end_time: int) -> Sequence[Tuple[str, int]]:
+    stmt = (
+        select(Pitchie.reporter, func.count(Pitchie.rowid))
+        .where(Pitchie.server == guild_id, Pitchie.timestamp.between(start_time, end_time))
+        .group_by(Pitchie.reporter)
+    )
+    return session.execute(stmt).all()
 
 
-def get_pitchie_by_message_id_db(cursor: sqlite3.Cursor, message_id: str) -> Tuple:
-    response = cursor.execute(SELECT_PITCHIE_BY_MESSAGE_ID, { "message_id": message_id })
-    return response.fetchone() # a message ID should only correspond to one pitchie (fingers crossed)
+def get_death_db(session: Session, guild_id: str, dead_person: str) -> Death:
+    stmt = select(Death).where(Death.server == guild_id, Death.dead_person == dead_person)
+    results = session.execute(stmt).scalars().all()
+    return secrets.choice(results)
 
 
-def update_death_image_url_db(cursor: sqlite3.Cursor, rowid: int, image_url: str):
-    cursor.execute(UPDATE_DEATH_IMAGE_URL_SQL, { "rowid": rowid, "image_url": image_url })
+def get_death_by_message_id_db(session: Session, message_id: str) -> Optional[Death]:
+    stmt = select(Death).where(Death.message_id == message_id)
+    # a message ID should only correspond to one death (fingers crossed)
+    return session.execute(stmt).scalars().first()
 
 
-def update_death_message_id_db(cursor: sqlite3.Cursor, rowid: int, message_id: str):
-    cursor.execute(UPDATE_DEATH_MESSAGE_ID_SQL, { "rowid": rowid, "message_id": message_id })
+def get_pitchie_by_message_id_db(session: Session, message_id: str) -> Optional[Pitchie]:
+    stmt = select(Pitchie).where(Pitchie.message_id == message_id)
+    # a message ID should only correspond to one pitchie (fingers crossed)
+    return session.execute(stmt).scalars().first()
 
 
-def delete_death_db(cursor: sqlite3.Cursor, rowid: int):
-    cursor.execute(DELETE_BY_ROWID_SQL, { "rowid": rowid })
+def update_death_image_url_db(session: Session, rowid: int, image_url: str):
+    death = session.get(Death, rowid)
+    death.image_url = image_url
 
 
-def delete_pitchie_db(cursor: sqlite3.Cursor, rowid: int):
-    cursor.execute(DELETE_PITCHIE_BY_ROWID_SQL, { "rowid": rowid })
+def update_death_message_id_db(session: Session, rowid: int, message_id: str):
+    death = session.get(Death, rowid)
+    death.message_id = message_id
 
 
-def update_pitchie_image_url_db(cursor: sqlite3.Cursor, rowid: int, image_url: str):
-    cursor.execute(UPDATE_PITCHIE_IMAGE_URL_SQL, { "rowid": rowid, "image_url": image_url })
+def delete_death_db(session: Session, rowid: int):
+    death = session.get(Death, rowid)
+    if death is not None:
+        session.delete(death)
 
 
-def update_pitchie_message_id_db(cursor: sqlite3.Cursor, rowid: int, message_id: str):
-    cursor.execute(UPDATE_PITCHIE_MESSAGE_ID_SQL, { "rowid": rowid, "message_id": message_id })
+def delete_pitchie_db(session: Session, rowid: int):
+    pitchie = session.get(Pitchie, rowid)
+    if pitchie is not None:
+        session.delete(pitchie)
+
+
+def update_pitchie_image_url_db(session: Session, rowid: int, image_url: str):
+    pitchie = session.get(Pitchie, rowid)
+    pitchie.image_url = image_url
+
+
+def update_pitchie_message_id_db(session: Session, rowid: int, message_id: str):
+    pitchie = session.get(Pitchie, rowid)
+    pitchie.message_id = message_id

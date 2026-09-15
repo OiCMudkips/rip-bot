@@ -61,11 +61,10 @@ def add_death_to_db(
 ) -> int:
     _log_task_event("add_death_to_db", "start")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
     rowid = add_death_db(
-        cursor,
+        session,
         server,
         channel_id,
         message_id,
@@ -76,8 +75,8 @@ def add_death_to_db(
         timestamp,
         reporter,
     )
-    conn.commit()
-    conn.close()
+    session.commit()
+    session.close()
 
     _log_task_event("add_death_to_db", "end")
 
@@ -98,11 +97,10 @@ def add_pitchie_to_db(
 ) -> int:
     _log_task_event("add_pitchie_to_db", "start")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
     rowid = add_pitchie_db(
-        cursor,
+        session,
         server,
         channel_id,
         message_id,
@@ -113,8 +111,8 @@ def add_pitchie_to_db(
         reporter,
         pitchie_type,
     )
-    conn.commit()
-    conn.close()
+    session.commit()
+    session.close()
 
     _log_task_event("add_pitchie_to_db", "end")
 
@@ -178,12 +176,11 @@ def update_database_with_image(input: Dict):
     if not s3_url:
         raise ValueError("missing image field")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    update_death_image_url_db(cursor, rowid, s3_url)
-    conn.commit()
-    conn.close()
+    update_death_image_url_db(session, rowid, s3_url)
+    session.commit()
+    session.close()
 
     _log_task_event("update_database_with_image", "end")
 
@@ -202,12 +199,11 @@ def update_database_with_pitchie_image(input: Dict):
     if not s3_url:
         raise ValueError("missing image field")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    update_pitchie_image_url_db(cursor, rowid, s3_url)
-    conn.commit()
-    conn.close()
+    update_pitchie_image_url_db(session, rowid, s3_url)
+    session.commit()
+    session.close()
 
     _log_task_event("update_database_with_pitchie_image", "end")
 
@@ -264,12 +260,11 @@ def update_database_with_message_id(input: Dict):
     response.raise_for_status()
     message = response.json()
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    update_death_message_id_db(cursor, rowid, message["id"])
-    conn.commit()
-    conn.close()
+    update_death_message_id_db(session, rowid, message["id"])
+    session.commit()
+    session.close()
 
     _log_task_event("update_database_with_message_id", "end")
 
@@ -292,12 +287,11 @@ def update_database_with_pitchie_message_id(input: Dict):
     response.raise_for_status()
     message = response.json()
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    update_pitchie_message_id_db(cursor, rowid, message["id"])
-    conn.commit()
-    conn.close()
+    update_pitchie_message_id_db(session, rowid, message["id"])
+    session.commit()
+    session.close()
 
     _log_task_event("update_database_with_pitchie_message_id", "end")
 
@@ -306,12 +300,11 @@ def update_database_with_pitchie_message_id(input: Dict):
 def delete_from_database(rowid: str):
     _log_task_event("delete_from_database", "start")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    delete_death_db(cursor, rowid)
-    conn.commit()
-    conn.close()
+    delete_death_db(session, rowid)
+    session.commit()
+    session.close()
 
     _log_task_event("delete_from_database", "end")
 
@@ -320,12 +313,11 @@ def delete_from_database(rowid: str):
 def delete_pitchie_from_database(rowid: str):
     _log_task_event("delete_pitchie_from_database", "start")
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    delete_pitchie_db(cursor, rowid)
-    conn.commit()
-    conn.close()
+    delete_pitchie_db(session, rowid)
+    session.commit()
+    session.close()
 
     _log_task_event("delete_pitchie_from_database", "end")
 
