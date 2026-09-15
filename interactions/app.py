@@ -13,7 +13,7 @@ from discord_interactions import verify_key_decorator
 from celery import group
 
 import tasks.tasks as app_tasks
-from db.db import add_death_db, get_death_tally_db, get_death_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, connect_to_database
+from db.db import add_death_db, get_death_tally_db, get_death_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, get_pitchie_by_message_id_db, connect_to_database
 
 
 app = Flask(__name__)
@@ -30,7 +30,10 @@ Removed by <@{remover_id}>."""
 DEATH_MESSAGE_RETRIEVE_TEMPLATE = """<@{dead_person_id}> died on <t:{death_time}:f>!
 Caption by <@{poster_id}>: \"{caption}\""""
 PITCHIE_MESSAGE_TEMPLATE = """New pitchie for <@{poster_id}>: \"{caption}\""""
+REMOVED_PITCHIE_MESSAGE_TEMPLATE = """~~New pitchie for <@{poster_id}>: \"{caption}\"~~
+Removed by <@{remover_id}>."""
 REMOVING_DEATH_IN_PROGRESS_TEMPLATE = """Removing death {death_message_link} for <@{dead_person_id}>."""
+REMOVING_PITCHIE_IN_PROGRESS_TEMPLATE = """Removing pitchie {pitchie_message_link}."""
 ERROR_MESSAGE = """rip-bot failed to process the command."""
 
 
@@ -276,6 +279,93 @@ def remove_death(req: Any):
     }
 
 
+def remove_pitchie(req: Any):
+    options = convert_options_to_map(req["data"]["options"])
+    pitchie_message_link = options.get("pitchie-message-link", None)
+
+    parsed_pitchie_message_url = parse_discord_message_url(pitchie_message_link)
+    if not parsed_pitchie_message_url:
+        return {
+            "type": 4,
+            "data": {
+                "content": "Invalid Discord message link.",
+            },
+        }
+
+    guild_id, channel_id, message_id = parsed_pitchie_message_url
+
+    log_object = {
+        "event": "remove_pitchie_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "target_message_id": message_id,
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    if req["guild_id"] != guild_id:
+        return {
+            "type": 4,
+            "data": {
+                "content": "Discord message link is not for this server."
+            }
+        }
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    pitchie = get_pitchie_by_message_id_db(cursor, message_id)
+    conn.close()
+
+    if not pitchie:
+        return {
+            "type": 4,
+            "data": {
+                "content": f"Pitchie not found."
+            }
+        }
+
+    rowid, database_guild_id, channel_id, caption, reporter = pitchie
+
+    if req["guild_id"] != database_guild_id:
+        return {
+            "type": 4,
+            "data": {
+                "content": "Discord message link is not for this server."
+            }
+        }
+
+    new_message = REMOVED_PITCHIE_MESSAGE_TEMPLATE.format(
+        poster_id=reporter,
+        caption=caption,
+        remover_id=req["member"]["user"]["id"],
+    )
+
+    (app_tasks.delete_pitchie_from_database.s(rowid) | \
+        app_tasks.update_death_message.si(channel_id, message_id, new_message)
+    ).delay()
+
+    log_object = {
+        "event": "remove_pitchie_completed",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "target_message_id": message_id,
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    return {
+        "type": 4,
+        "data": {
+            "content": REMOVING_PITCHIE_IN_PROGRESS_TEMPLATE.format(
+                pitchie_message_link=pitchie_message_link,
+            ),
+        },
+    }
+
+
 def tally_deaths(req: Any):
     options = convert_options_to_map(req["data"].get("options", {}))
     start_time, end_time = options.get("start-time", None), options.get("end-time", None)
@@ -456,6 +546,7 @@ SlashCommandHandlers: Dict[str, Callable[[Any], Any]] = {
     "add-pitchie": add_pitchie,
     "get-death": get_death,
     "remove-death": remove_death,
+    "remove-pitchie": remove_pitchie,
     "tally-deaths": tally_deaths,
     "tally-pitchies": tally_pitchies,
 }

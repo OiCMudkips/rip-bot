@@ -11,7 +11,7 @@ import requests
 from celery import Celery, Task
 from celery.utils.log import get_task_logger
 
-from db.db import connect_to_database, add_death_db, update_death_image_url_db, update_death_message_id_db, delete_death_db, add_pitchie_db, update_pitchie_image_url_db, update_pitchie_message_id_db
+from db.db import connect_to_database, add_death_db, update_death_image_url_db, update_death_message_id_db, delete_death_db, add_pitchie_db, update_pitchie_image_url_db, update_pitchie_message_id_db, delete_pitchie_db
 
 logger = get_task_logger(__name__)
 
@@ -312,6 +312,20 @@ def delete_from_database(rowid: str):
     conn.close()
 
     _log_task_event("delete_from_database", "end")
+
+
+@app.task
+def delete_pitchie_from_database(rowid: str):
+    _log_task_event("delete_pitchie_from_database", "start")
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    delete_pitchie_db(cursor, rowid)
+    conn.commit()
+    conn.close()
+
+    _log_task_event("delete_pitchie_from_database", "end")
 
 
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
