@@ -29,6 +29,7 @@ Caption by <@{poster_id}>: \"{caption}\"~~
 Removed by <@{remover_id}>."""
 DEATH_MESSAGE_RETRIEVE_TEMPLATE = """<@{dead_person_id}> died on <t:{death_time}:f>!
 Caption by <@{poster_id}>: \"{caption}\""""
+PITCHIE_MESSAGE_TEMPLATE = """New pitchie for <@{poster_id}>: \"{caption}\""""
 REMOVING_DEATH_IN_PROGRESS_TEMPLATE = """Removing death {death_message_link} for <@{dead_person_id}>."""
 ERROR_MESSAGE = """rip-bot failed to process the command."""
 
@@ -123,6 +124,66 @@ def add_death(req: Any):
 
 def add_death_beta(req: Any):
     return add_death(req)
+
+
+def add_pitchie(req: Any):
+    interaction_token = req["token"]
+    options = convert_options_to_map(req["data"]["options"])
+    resolved_attachment = req["data"]["resolved"]["attachments"][options["image"]]
+    image_url = resolved_attachment["url"]
+
+    log_object = {
+        "event": "add_pitchie_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    (
+        group(
+            app_tasks.add_pitchie_to_db.s(
+                req["guild_id"],
+                req["channel_id"],
+                "",
+                options["caption"],
+                python_json.dumps(resolved_attachment),
+                image_url,
+                int(time.time()),
+            ),
+            app_tasks.download_image_and_upload_to_s3.s(image_url),
+        ) |
+        app_tasks.gather_results.s(interaction_token=interaction_token) |
+        group(
+            app_tasks.update_database_with_pitchie_image.s(),
+            app_tasks.update_interaction_with_image.s(),
+            # technically the message takes time to exist in Discord
+            # so this delays the messsage ID fetching for a bit
+            # TODO: readd the countdown/delay once I figure out how
+            # for now this should be fine since we wait are downloding and uploading a whole image
+            # in the first step, which serves as the delay
+            app_tasks.update_database_with_pitchie_message_id.s()
+        )).delay()
+
+    log_object = {
+        "event": "add_pitchie_completed",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    return {
+        "type": 4,
+        "data": {
+            "content": PITCHIE_MESSAGE_TEMPLATE.format(
+                caption=options["caption"],
+                poster_id=req["member"]["user"]["id"],
+            )
+        }
+    }
 
 
 def remove_death(req: Any):
@@ -317,6 +378,7 @@ def get_death(req: Any):
 SlashCommandHandlers: Dict[str, Callable[[Any], Any]] = {
     "add-death": add_death,
     "add-death-beta": add_death_beta,
+    "add-pitchie": add_pitchie,
     "get-death": get_death,
     "remove-death": remove_death,
     "tally-deaths": tally_deaths,
