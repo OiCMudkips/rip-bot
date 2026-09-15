@@ -272,7 +272,7 @@ def remove_death(req: Any):
         "data": {
             "content": REMOVING_DEATH_IN_PROGRESS_TEMPLATE.format(
                 death_message_link=death_message_link,
-                dead_person_id=dead_person,
+                dead_person_id=death.dead_person,
             ),
         },
     }
