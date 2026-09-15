@@ -93,7 +93,7 @@ def add_pitchie_to_db(
     image_url: str,
     timestamp: Number,
     reporter: str,
-    pitchie_type: int,
+    type: int,
 ) -> int:
     _log_task_event("add_pitchie_to_db", "start")
 
@@ -109,7 +109,7 @@ def add_pitchie_to_db(
         image_url,
         timestamp,
         reporter,
-        pitchie_type,
+        type,
     )
     session.commit()
     session.close()

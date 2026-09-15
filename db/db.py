@@ -43,7 +43,7 @@ class Pitchie(Base):
     image_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     timestamp: Mapped[int] = mapped_column(Integer)
     reporter: Mapped[str] = mapped_column(String)
-    pitchie_type: Mapped[int] = mapped_column(Integer)
+    type: Mapped[int] = mapped_column(Integer)
 
 
 def connect_to_database(path: str) -> Session:
@@ -90,7 +90,7 @@ def add_pitchie_db(
     image_url: str,
     timestamp: int,
     reporter: str,
-    pitchie_type: PitchieType,
+    type: PitchieType,
 ) -> int:
     pitchie = Pitchie(
         server=server,
@@ -101,7 +101,7 @@ def add_pitchie_db(
         image_url=image_url,
         timestamp=timestamp,
         reporter=reporter,
-        pitchie_type=int(pitchie_type),
+        type=int(type),
     )
     session.add(pitchie)
     session.flush()
@@ -129,18 +129,18 @@ def get_death_tally_time_db(session: Session, guild_id: str, start_time: int, en
 
 def get_pitchie_tally_db(session: Session, guild_id: str) -> Sequence[Tuple[str, int, int]]:
     stmt = (
-        select(Pitchie.reporter, Pitchie.pitchie_type, func.count(Pitchie.rowid))
+        select(Pitchie.reporter, Pitchie.type, func.count(Pitchie.rowid))
         .where(Pitchie.server == guild_id)
-        .group_by(Pitchie.reporter, Pitchie.pitchie_type)
+        .group_by(Pitchie.reporter, Pitchie.type)
     )
     return session.execute(stmt).all()
 
 
 def get_pitchie_tally_time_db(session: Session, guild_id: str, start_time: int, end_time: int) -> Sequence[Tuple[str, int]]:
     stmt = (
-        select(Pitchie.reporter, Pitchie.pitchie_type, func.count(Pitchie.rowid))
+        select(Pitchie.reporter, Pitchie.type, func.count(Pitchie.rowid))
         .where(Pitchie.server == guild_id, Pitchie.timestamp.between(start_time, end_time))
-        .group_by(Pitchie.reporter, Pitchie.pitchie_type)
+        .group_by(Pitchie.reporter, Pitchie.type)
     )
     return session.execute(stmt).all()
 

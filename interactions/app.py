@@ -134,7 +134,7 @@ def add_pitchie(req: Any):
     options = convert_options_to_map(req["data"]["options"])
     resolved_attachment = req["data"]["resolved"]["attachments"][options["image"]]
     image_url = resolved_attachment["url"]
-    pitchie_type = PitchieType[options["type"]]
+    type = PitchieType[options["type"]]
 
     log_object = {
         "event": "add_pitchie_start",
@@ -156,7 +156,7 @@ def add_pitchie(req: Any):
                 image_url,
                 int(time.time()),
                 req["member"]["user"]["id"],
-                int(pitchie_type),
+                int(type),
             ),
             app_tasks.download_image_and_upload_to_s3.s(image_url),
         ) |
@@ -474,12 +474,12 @@ def tally_pitchies(req: Any):
     session.close()
 
     result_by_person = {}
-    for person, pitchie_type, pitchie_count in db_result:
+    for person, type, count in db_result:
         if person not in result_by_person:
             result_by_person[person] = [0, 0, 0, 0] # one entry for each type of pitchie, then a total
 
-        result_by_person[person][pitchie_type] = pitchie_count
-        result_by_person[person][-1] += pitchie_count
+        result_by_person[person][type] = count
+        result_by_person[person][-1] += count
 
     result = []
     for person, pitchie_counts in result_by_person.items():
