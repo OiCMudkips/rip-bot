@@ -484,7 +484,7 @@ def tally_pitchies(req: Any):
     result_by_person = {}
     for person, pitchie_type, pitchie_count in db_result:
         if person not in result_by_person:
-            result_by_person[person] = (0, 0, 0, 0) # one entry for each type of pitchie, then a total
+            result_by_person[person] = [0, 0, 0, 0] # one entry for each type of pitchie, then a total
 
         result_by_person[person][pitchie_type] = pitchie_count
         result_by_person[person][-1] += pitchie_count
