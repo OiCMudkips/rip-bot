@@ -6,17 +6,17 @@ from typing import Dict, List, Tuple
 
 
 class PitchieType(IntEnum):
-    Brilliant = 1
-    Pitched = 2
-    Other = 3
+    Brilliant = 0
+    Pitched = 1
+    Other = 2
 
 
 INSERT_DEATH_SQL = """INSERT INTO deaths VALUES (:server, :channel_id, :message_id, :dead_person, :caption, :attachment, :image_url, :timestamp, :reporter)"""
 INSERT_PITCHIE_SQL = """INSERT INTO pitchies VALUES (:server, :channel_id, :message_id, :caption, :attachment, :image_url, :timestamp, :reporter, :pitchie_type)"""
 SELECT_DEADPERSON_COUNT_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE server = :guild_id GROUP BY dead_person"""
 SELECT_DEADPERSON_COUNT_BY_TIME_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY dead_person"""
-SELECT_PITCHIE_COUNT_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE server = :guild_id GROUP BY reporter"""
-SELECT_PITCHIE_COUNT_BY_TIME_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY reporter"""
+SELECT_PITCHIE_COUNT_SQL = """SELECT reporter, type, COUNT(rowid) FROM pitchies WHERE server = :guild_id GROUP BY reporter, type"""
+SELECT_PITCHIE_COUNT_BY_TIME_SQL = """SELECT reporter, type, COUNT(rowid) FROM pitchies WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY reporter, type"""
 SELECT_DEADPERSON_SQL = """SELECT caption, attachment, timestamp, reporter FROM deaths WHERE server = :guild_id AND dead_person = :dead_person"""
 SELECT_DEADPERSON_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, dead_person, caption, reporter FROM deaths WHERE message_id = :message_id"""
 SELECT_PITCHIE_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, caption, reporter FROM pitchies WHERE message_id = :message_id"""
@@ -107,14 +107,14 @@ def get_death_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: i
     })
     return response.fetchall()
 
-def get_pitchie_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int]]:
+def get_pitchie_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int, int]]:
     response = cursor.execute(SELECT_PITCHIE_COUNT_SQL, {
         "guild_id": guild_id,
     })
     return response.fetchall()
 
 
-def get_pitchie_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
+def get_pitchie_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int, int]]:
     response = cursor.execute(SELECT_PITCHIE_COUNT_BY_TIME_SQL, {
         "start_time": start_time,
         "end_time": end_time,
