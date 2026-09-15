@@ -13,7 +13,7 @@ from discord_interactions import verify_key_decorator
 from celery import group
 
 import tasks.tasks as app_tasks
-from db.db import add_death_db, get_death_tally_db, get_death_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, get_pitchie_by_message_id_db, connect_to_database
+from db.db import get_death_tally_db, get_death_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, get_pitchie_by_message_id_db, connect_to_database, PitchieType
 
 
 app = Flask(__name__)
@@ -134,6 +134,7 @@ def add_pitchie(req: Any):
     options = convert_options_to_map(req["data"]["options"])
     resolved_attachment = req["data"]["resolved"]["attachments"][options["image"]]
     image_url = resolved_attachment["url"]
+    pitchie_type = PitchieType[options["type"]]
 
     log_object = {
         "event": "add_pitchie_start",
@@ -155,6 +156,7 @@ def add_pitchie(req: Any):
                 image_url,
                 int(time.time()),
                 req["member"]["user"]["id"],
+                int(pitchie_type),
             ),
             app_tasks.download_image_and_upload_to_s3.s(image_url),
         ) |

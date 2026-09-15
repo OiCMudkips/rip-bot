@@ -1,10 +1,18 @@
 import sqlite3
+from enum import IntEnum
 from numbers import Number
 import secrets
 from typing import Dict, List, Tuple
 
+
+class PitchieType(IntEnum):
+    Brilliant = 1
+    Pitched = 2
+    Other = 3
+
+
 INSERT_DEATH_SQL = """INSERT INTO deaths VALUES (:server, :channel_id, :message_id, :dead_person, :caption, :attachment, :image_url, :timestamp, :reporter)"""
-INSERT_PITCHIE_SQL = """INSERT INTO pitchies VALUES (:server, :channel_id, :message_id, :caption, :attachment, :image_url, :timestamp, :reporter)"""
+INSERT_PITCHIE_SQL = """INSERT INTO pitchies VALUES (:server, :channel_id, :message_id, :caption, :attachment, :image_url, :timestamp, :reporter, :pitchie_type)"""
 SELECT_DEADPERSON_COUNT_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE server = :guild_id GROUP BY dead_person"""
 SELECT_DEADPERSON_COUNT_BY_TIME_SQL = """SELECT dead_person, COUNT(rowid) FROM deaths WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY dead_person"""
 SELECT_PITCHIE_COUNT_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE server = :guild_id GROUP BY reporter"""
@@ -64,6 +72,7 @@ def add_pitchie_db(
     image_url: str,
     timestamp: Number,
     reporter: str,
+    pitchie_type: PitchieType,
 ) -> int:
     cursor.execute(
         INSERT_PITCHIE_SQL,
@@ -76,6 +85,7 @@ def add_pitchie_db(
             "image_url": image_url,
             "timestamp": timestamp,
             "reporter": reporter,
+            "pitchie_type": int(pitchie_type),
         },
     )
 
