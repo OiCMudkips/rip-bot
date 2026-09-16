@@ -1,0 +1,20 @@
+{
+    "name": "add-pitchie",
+    "description": "Adds a pitchie to the database",
+    "options": [
+        {
+            "type": 3,
+            "name": "caption",
+            "description": "Write a caption for your pitchie",
+            "required": true
+        },
+        {
+            "type": 11,
+            "name": "image",
+            "description": "Proof of your pitchie",
+            "required": true
+        }
+    ],
+    "default_member_permissions": 2048,
+    "dm_permission": false
+}

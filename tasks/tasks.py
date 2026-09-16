@@ -11,7 +11,7 @@ import requests
 from celery import Celery, Task
 from celery.utils.log import get_task_logger
 
-from db.db import connect_to_database, add_death_db, update_death_image_url_db, update_death_message_id_db, delete_death_db
+from db.db import connect_to_database, add_death_db, update_death_image_url_db, update_death_message_id_db, delete_death_db, add_pitchie_db, update_pitchie_image_url_db, update_pitchie_message_id_db
 
 logger = get_task_logger(__name__)
 
@@ -85,6 +85,39 @@ def add_death_to_db(
     
 
 @app.task
+def add_pitchie_to_db(
+    server: str,
+    channel_id: str,
+    message_id: str,
+    caption: str,
+    attachment: str,
+    image_url: str,
+    timestamp: Number,
+) -> int:
+    _log_task_event("add_pitchie_to_db", "start")
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    rowid = add_pitchie_db(
+        cursor,
+        server,
+        channel_id,
+        message_id,
+        caption,
+        attachment,
+        image_url,
+        timestamp,
+    )
+    conn.commit()
+    conn.close()
+
+    _log_task_event("add_pitchie_to_db", "end")
+
+    return { "rowid": rowid }
+
+
+@app.task
 def download_image_and_upload_to_s3(source_url: str) -> Dict:
     _log_task_event("download_image_and_upload_to_s3", "start")
 
@@ -151,6 +184,30 @@ def update_database_with_image(input: Dict):
     _log_task_event("update_database_with_image", "end")
 
 
+@app.task
+def update_database_with_pitchie_image(input: Dict):
+    _log_task_event("update_database_with_pitchie_image", "start")
+
+    rowid: int = input.get("rowid", None)
+    image = input.get("image", None)
+
+    if not rowid or not image:
+        raise ValueError("missing argument")
+
+    _, _, s3_url = image
+    if not s3_url:
+        raise ValueError("missing image field")
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    update_pitchie_image_url_db(cursor, rowid, s3_url)
+    conn.commit()
+    conn.close()
+
+    _log_task_event("update_database_with_pitchie_image", "end")
+
+
 # update_interaction_with_image is chained from download_image_and_upload_to_s3,
 # so file_name, image_content and s3_url has to be first
 @app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
@@ -211,6 +268,34 @@ def update_database_with_message_id(input: Dict):
     conn.close()
 
     _log_task_event("update_database_with_message_id", "end")
+
+
+@app.task(autoretry_for=(requests.exceptions.HTTPError,), default_retry_delay=5)
+def update_database_with_pitchie_message_id(input: Dict):
+    _log_task_event("update_database_with_pitchie_message_id", "start")
+
+    rowid: int = input.get("rowid", None)
+    interaction_token: str = input.get("interaction_token", None)
+
+    if not rowid or not interaction_token:
+        raise ValueError("missing argument")
+
+    response = requests.get(
+        f"https://discord.com/api/v10/webhooks/{DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
+        headers={"Authorization": AUTHORIZATION},
+    )
+
+    response.raise_for_status()
+    message = response.json()
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    update_pitchie_message_id_db(cursor, rowid, message["id"])
+    conn.commit()
+    conn.close()
+
+    _log_task_event("update_database_with_pitchie_message_id", "end")
 
 
 @app.task
