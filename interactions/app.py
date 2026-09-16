@@ -134,7 +134,7 @@ def add_pitchie(req: Any):
     options = convert_options_to_map(req["data"]["options"])
     resolved_attachment = req["data"]["resolved"]["attachments"][options["image"]]
     image_url = resolved_attachment["url"]
-    pitchie_type = PitchieType[options["type"]]
+    type = PitchieType[options["type"]]
 
     log_object = {
         "event": "add_pitchie_start",
@@ -156,7 +156,7 @@ def add_pitchie(req: Any):
                 image_url,
                 int(time.time()),
                 req["member"]["user"]["id"],
-                int(pitchie_type),
+                int(type),
             ),
             app_tasks.download_image_and_upload_to_s3.s(image_url),
         ) |
@@ -225,11 +225,10 @@ def remove_death(req: Any):
             }
         }
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    death = get_death_by_message_id_db(cursor, message_id)
-    conn.close()
+    death = get_death_by_message_id_db(session, message_id)
+    session.close()
 
     if not death:
         return {
@@ -238,10 +237,8 @@ def remove_death(req: Any):
                 "content": f"Death not found."
             }
         }
-    
-    rowid, database_guild_id, channel_id, dead_person, caption, reporter = death
 
-    if req["guild_id"] != database_guild_id:
+    if req["guild_id"] != death.server:
         return {
             "type": 4,
             "data": {
@@ -250,14 +247,14 @@ def remove_death(req: Any):
         }
 
     new_message = REMOVED_DEATH_MESSAGE_TEMPLATE.format(
-        dead_person_id=dead_person,
-        poster_id=reporter,
-        caption=caption,
+        dead_person_id=death.dead_person,
+        poster_id=death.reporter,
+        caption=death.caption,
         remover_id=req["member"]["user"]["id"],
     )
-    
-    (app_tasks.delete_from_database.s(rowid) | \
-        app_tasks.update_message_content.si(channel_id, message_id, new_message)
+
+    (app_tasks.delete_from_database.s(death.rowid) | \
+        app_tasks.update_message_content.si(death.channel_id, message_id, new_message)
     ).delay()
 
     log_object = {
@@ -275,7 +272,7 @@ def remove_death(req: Any):
         "data": {
             "content": REMOVING_DEATH_IN_PROGRESS_TEMPLATE.format(
                 death_message_link=death_message_link,
-                dead_person_id=dead_person,
+                dead_person_id=death.dead_person,
             ),
         },
     }
@@ -314,11 +311,10 @@ def remove_pitchie(req: Any):
             }
         }
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
-    pitchie = get_pitchie_by_message_id_db(cursor, message_id)
-    conn.close()
+    pitchie = get_pitchie_by_message_id_db(session, message_id)
+    session.close()
 
     if not pitchie:
         return {
@@ -328,9 +324,7 @@ def remove_pitchie(req: Any):
             }
         }
 
-    rowid, database_guild_id, channel_id, caption, reporter = pitchie
-
-    if req["guild_id"] != database_guild_id:
+    if req["guild_id"] != pitchie.server:
         return {
             "type": 4,
             "data": {
@@ -339,13 +333,13 @@ def remove_pitchie(req: Any):
         }
 
     new_message = REMOVED_PITCHIE_MESSAGE_TEMPLATE.format(
-        poster_id=reporter,
-        caption=caption,
+        poster_id=pitchie.reporter,
+        caption=pitchie.caption,
         remover_id=req["member"]["user"]["id"],
     )
 
-    (app_tasks.delete_pitchie_from_database.s(rowid) | \
-        app_tasks.update_message_content.si(channel_id, message_id, new_message)
+    (app_tasks.delete_pitchie_from_database.s(pitchie.rowid) | \
+        app_tasks.update_message_content.si(pitchie.channel_id, message_id, new_message)
     ).delay()
 
     log_object = {
@@ -381,13 +375,12 @@ def tally_deaths(req: Any):
     }
     app.logger.info(python_json.dumps(log_object))
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
     if start_time and end_time:
         try:
             start_time_p, end_time_p = time.mktime(time.strptime(start_time, "%Y-%m-%d")), time.mktime(time.strptime(end_time, "%Y-%m-%d"))
-            result = get_death_tally_time_db(cursor, req["guild_id"], start_time_p, end_time_p)
+            result = get_death_tally_time_db(session, req["guild_id"], start_time_p, end_time_p)
         except ValueError:
             return {
                 "type": 4,
@@ -396,7 +389,7 @@ def tally_deaths(req: Any):
                 }
             }
     elif not start_time and not end_time:
-        result = get_death_tally_db(cursor, req["guild_id"])
+        result = get_death_tally_db(session, req["guild_id"])
     else:
         return {
             "type": 4,
@@ -405,7 +398,7 @@ def tally_deaths(req: Any):
             }
         }
 
-    conn.close()
+    session.close()
 
     def sort_by_count(row):
         return row[1]
@@ -455,13 +448,12 @@ def tally_pitchies(req: Any):
     }
     app.logger.info(python_json.dumps(log_object))
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
+    session = connect_to_database(DATABASE_PATH)
 
     if start_time and end_time:
         try:
             start_time_p, end_time_p = time.mktime(time.strptime(start_time, "%Y-%m-%d")), time.mktime(time.strptime(end_time, "%Y-%m-%d"))
-            db_result = get_pitchie_tally_time_db(cursor, req["guild_id"], start_time_p, end_time_p)
+            db_result = get_pitchie_tally_time_db(session, req["guild_id"], start_time_p, end_time_p)
         except ValueError:
             return {
                 "type": 4,
@@ -470,7 +462,7 @@ def tally_pitchies(req: Any):
                 }
             }
     elif not start_time and not end_time:
-        db_result = get_pitchie_tally_db(cursor, req["guild_id"])
+        db_result = get_pitchie_tally_db(session, req["guild_id"])
     else:
         return {
             "type": 4,
@@ -479,15 +471,15 @@ def tally_pitchies(req: Any):
             }
         }
 
-    conn.close()
+    session.close()
 
     result_by_person = {}
-    for person, pitchie_type, pitchie_count in db_result:
+    for person, type, count in db_result:
         if person not in result_by_person:
             result_by_person[person] = [0, 0, 0, 0] # one entry for each type of pitchie, then a total
 
-        result_by_person[person][pitchie_type] = pitchie_count
-        result_by_person[person][-1] += pitchie_count
+        result_by_person[person][type] = count
+        result_by_person[person][-1] += count
 
     result = []
     for person, pitchie_counts in result_by_person.items():
@@ -541,24 +533,23 @@ def tally_pitchies(req: Any):
 def get_death(req: Any):
     options = convert_options_to_map(req["data"]["options"])
 
-    conn = connect_to_database(DATABASE_PATH)
-    cursor = conn.cursor()
-    result = get_death_db(cursor, req["guild_id"], options["dead-person"])
-    conn.close()
+    session = connect_to_database(DATABASE_PATH)
+    result = get_death_db(session, req["guild_id"], options["dead-person"])
+    session.close()
 
     return {
         "type": 4,
         "data": {
             "content": DEATH_MESSAGE_RETRIEVE_TEMPLATE.format(
                 dead_person_id=options["dead-person"],
-                caption=result["caption"],
-                death_time=result["timestamp"],
-                poster_id=result["reporter"],
+                caption=result.caption,
+                death_time=result.timestamp,
+                poster_id=result.reporter,
             ),
             "embeds": [
                 {
                     "type": "image",
-                    "image": python_json.loads(result["attachment"]),
+                    "image": python_json.loads(result.attachment),
                 },
             ],
         }
