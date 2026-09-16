@@ -340,6 +340,7 @@ def interactions_post():
         response = InteractionsHandlers[interaction_type](request_body)
         return json.jsonify(response)
     except Exception as e:
+        app.logger.exception(e)
         return json.jsonify({
             "type": 4,
             "data": {
