@@ -13,7 +13,7 @@ from discord_interactions import verify_key_decorator
 from celery import group
 
 import tasks.tasks as app_tasks
-from db.db import add_death_db, get_tally_db, get_tally_time_db, get_death_db, get_death_by_message_id_db, connect_to_database
+from db.db import add_death_db, get_tally_db, get_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, connect_to_database
 
 
 app = Flask(__name__)
@@ -349,6 +349,69 @@ def tally_deaths(req: Any):
     }
 
 
+def tally_pitchies(req: Any):
+    options = convert_options_to_map(req["data"].get("options", {}))
+    start_time, end_time = options.get("start-time", None), options.get("end-time", None)
+
+    log_object = {
+        "event": "tally_pitchies_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    conn = connect_to_database(DATABASE_PATH)
+    cursor = conn.cursor()
+
+    if start_time and end_time:
+        try:
+            start_time_p, end_time_p = time.mktime(time.strptime(start_time, "%Y-%m-%d")), time.mktime(time.strptime(end_time, "%Y-%m-%d"))
+            result = get_pitchie_tally_time_db(cursor, req["guild_id"], start_time_p, end_time_p)
+        except ValueError:
+            return {
+                "type": 4,
+                "data": {
+                    "content": "Both start time and end time are required to be yyyy-mm-dd.",
+                }
+            }
+    elif not start_time and not end_time:
+        result = get_pitchie_tally_db(cursor, req["guild_id"])
+    else:
+        return {
+            "type": 4,
+            "data": {
+                "content": "Both start time and end time are required to be yyyy-mm-dd.",
+            }
+        }
+
+    conn.close()
+
+    header_text = "Pitchies"
+    if start_time:
+        header_text += f" ({start_time} to {end_time})"
+
+    content = f"**{header_text}**\n{result}"
+
+    log_object = {
+        "event": "tally_pitchies_completed",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+
+    return {
+        "type": 4,
+        "data": {
+            "content": content,
+        }
+    }
+
+
 def get_death(req: Any):
     options = convert_options_to_map(req["data"]["options"])
 
@@ -382,6 +445,7 @@ SlashCommandHandlers: Dict[str, Callable[[Any], Any]] = {
     "get-death": get_death,
     "remove-death": remove_death,
     "tally-deaths": tally_deaths,
+    "tally-pitchies": tally_pitchies,
 }
 
 def ApplicationCommandHandler(req: Any) -> Any:
