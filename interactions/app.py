@@ -255,7 +255,7 @@ def remove_death(req: Any):
     )
     
     (app_tasks.delete_from_database.s(rowid) | \
-        app_tasks.update_death_message.si(channel_id, message_id, new_message)
+        app_tasks.update_message_content.si(channel_id, message_id, new_message)
     ).delay()
 
     log_object = {
@@ -343,7 +343,7 @@ def remove_pitchie(req: Any):
     )
 
     (app_tasks.delete_pitchie_from_database.s(rowid) | \
-        app_tasks.update_death_message.si(channel_id, message_id, new_message)
+        app_tasks.update_message_content.si(channel_id, message_id, new_message)
     ).delay()
 
     log_object = {
