@@ -151,6 +151,7 @@ def add_pitchie(req: Any):
                 python_json.dumps(resolved_attachment),
                 image_url,
                 int(time.time()),
+                req["member"]["user"]["id"],
             ),
             app_tasks.download_image_and_upload_to_s3.s(image_url),
         ) |
@@ -387,6 +388,11 @@ def tally_pitchies(req: Any):
         }
 
     conn.close()
+
+    def sort_by_count(row):
+        return row[1]
+
+    result.sort(key=sort_by_count, reverse=True)
 
     header_text = "Pitchies"
     if start_time:
