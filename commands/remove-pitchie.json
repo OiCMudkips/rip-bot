@@ -1,0 +1,14 @@
+{
+    "name": "remove-pitchie",
+    "description": "Removes a pitchie from the database",
+    "options": [
+        {
+            "type": 3,
+            "name": "pitchie-message-link",
+            "description": "A link to the message which contains the pitchie to remove",
+            "required": true
+        }
+    ],
+    "default_member_permissions": 2048,
+    "dm_permission": false
+}

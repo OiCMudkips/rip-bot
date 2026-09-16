@@ -11,9 +11,11 @@ SELECT_PITCHIE_COUNT_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE 
 SELECT_PITCHIE_COUNT_BY_TIME_SQL = """SELECT reporter, COUNT(rowid) FROM pitchies WHERE timestamp BETWEEN :start_time AND :end_time AND server = :guild_id GROUP BY reporter"""
 SELECT_DEADPERSON_SQL = """SELECT caption, attachment, timestamp, reporter FROM deaths WHERE server = :guild_id AND dead_person = :dead_person"""
 SELECT_DEADPERSON_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, dead_person, caption, reporter FROM deaths WHERE message_id = :message_id"""
+SELECT_PITCHIE_BY_MESSAGE_ID = """SELECT rowid, server, channel_id, caption, reporter FROM pitchies WHERE message_id = :message_id"""
 UPDATE_DEATH_IMAGE_URL_SQL = """UPDATE deaths SET image_url = :image_url WHERE rowid = :rowid"""
 UPDATE_DEATH_MESSAGE_ID_SQL = """UPDATE deaths SET message_id = :message_id WHERE rowid = :rowid"""
 DELETE_BY_ROWID_SQL = """DELETE FROM deaths WHERE rowid = :rowid"""
+DELETE_PITCHIE_BY_ROWID_SQL = """DELETE FROM pitchies WHERE rowid = :rowid"""
 UPDATE_PITCHIE_IMAGE_URL_SQL = """UPDATE pitchies SET image_url = :image_url WHERE rowid = :rowid"""
 UPDATE_PITCHIE_MESSAGE_ID_SQL = """UPDATE pitchies SET message_id = :message_id WHERE rowid = :rowid"""
 
@@ -130,6 +132,11 @@ def get_death_by_message_id_db(cursor: sqlite3.Cursor, message_id: str) -> Tuple
     return response.fetchone() # a message ID should only correspond to one death (fingers crossed)
 
 
+def get_pitchie_by_message_id_db(cursor: sqlite3.Cursor, message_id: str) -> Tuple:
+    response = cursor.execute(SELECT_PITCHIE_BY_MESSAGE_ID, { "message_id": message_id })
+    return response.fetchone() # a message ID should only correspond to one pitchie (fingers crossed)
+
+
 def update_death_image_url_db(cursor: sqlite3.Cursor, rowid: int, image_url: str):
     cursor.execute(UPDATE_DEATH_IMAGE_URL_SQL, { "rowid": rowid, "image_url": image_url })
 
@@ -140,6 +147,10 @@ def update_death_message_id_db(cursor: sqlite3.Cursor, rowid: int, message_id: s
 
 def delete_death_db(cursor: sqlite3.Cursor, rowid: int):
     cursor.execute(DELETE_BY_ROWID_SQL, { "rowid": rowid })
+
+
+def delete_pitchie_db(cursor: sqlite3.Cursor, rowid: int):
+    cursor.execute(DELETE_PITCHIE_BY_ROWID_SQL, { "rowid": rowid })
 
 
 def update_pitchie_image_url_db(cursor: sqlite3.Cursor, rowid: int, image_url: str):
