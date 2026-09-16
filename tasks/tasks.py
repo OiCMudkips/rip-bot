@@ -18,6 +18,7 @@ if not CELERY_RESULT_BACKEND:
     raise ValueError("Missing CELERY_RESULT_BACKEND value.")
 
 app = Celery("tasks", broker=CELERY_BROKER)
+app.conf.worker_cancel_long_running_tasks_on_connection_loss = True # disable warning message in 5.1 <= Celery ver. < 6.0
 
 DATABASE_PATH = os.getenv("DATABASE_PATH")
 S3_BUCKET = os.getenv("S3_BUCKET")
