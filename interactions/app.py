@@ -13,7 +13,7 @@ from discord_interactions import verify_key_decorator
 from celery import group
 
 import tasks.tasks as app_tasks
-from db.db import add_death_db, get_tally_db, get_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, connect_to_database
+from db.db import add_death_db, get_death_tally_db, get_death_tally_time_db, get_death_db, get_death_by_message_id_db, get_pitchie_tally_db, get_pitchie_tally_time_db, connect_to_database
 
 
 app = Flask(__name__)
@@ -294,7 +294,7 @@ def tally_deaths(req: Any):
     if start_time and end_time:
         try:
             start_time_p, end_time_p = time.mktime(time.strptime(start_time, "%Y-%m-%d")), time.mktime(time.strptime(end_time, "%Y-%m-%d"))
-            result = get_tally_time_db(cursor, req["guild_id"], start_time_p, end_time_p)
+            result = get_death_tally_time_db(cursor, req["guild_id"], start_time_p, end_time_p)
         except ValueError:
             return {
                 "type": 4,
@@ -303,7 +303,7 @@ def tally_deaths(req: Any):
                 }
             }
     elif not start_time and not end_time:
-        result = get_tally_db(cursor, req["guild_id"])
+        result = get_death_tally_db(cursor, req["guild_id"])
     else:
         return {
             "type": 4,
