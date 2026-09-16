@@ -78,14 +78,14 @@ def add_pitchie_db(
     return cursor.lastrowid
 
 
-def get_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int]]:
+def get_death_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> List[Tuple[str, int]]:
     response = cursor.execute(SELECT_DEADPERSON_COUNT_SQL, {
         "guild_id": guild_id,
     })
     return response.fetchall()
 
 
-def get_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
+def get_death_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
     response = cursor.execute(SELECT_DEADPERSON_COUNT_BY_TIME_SQL, {
         "start_time": start_time,
         "end_time": end_time,
@@ -97,16 +97,16 @@ def get_pitchie_tally_db(cursor: sqlite3.Cursor, guild_id: str) -> int:
     response = cursor.execute(SELECT_PITCHIE_COUNT_SQL, {
         "guild_id": guild_id,
     })
-    return response.fetchone()[0]
+    return response.fetchall()
 
 
-def get_pitchie_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> int:
+def get_pitchie_tally_time_db(cursor: sqlite3.Cursor, guild_id: str, start_time: int, end_time: int) -> List[Tuple[str, int]]:
     response = cursor.execute(SELECT_PITCHIE_COUNT_BY_TIME_SQL, {
         "start_time": start_time,
         "end_time": end_time,
         "guild_id": guild_id,
     })
-    return response.fetchone()[0]
+    return response.fetchall()
 
 
 def get_death_db(cursor: sqlite3.Cursor, guild_id: str, dead_person: str) -> Dict:
