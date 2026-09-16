@@ -392,7 +392,13 @@ def tally_pitchies(req: Any):
     if start_time:
         header_text += f" ({start_time} to {end_time})"
 
-    content = f"**{header_text}**\n{result}"
+    lines_of_text = [f"**{header_text}**"]
+    current_rank = 1
+    for person, pitchie_count in itertools.islice(result, 50):
+        lines_of_text.append(f"{current_rank}. <@{person}> - {pitchie_count}")
+        current_rank += 1
+
+    content = "\n".join(lines_of_text)
 
     log_object = {
         "event": "tally_pitchies_completed",
