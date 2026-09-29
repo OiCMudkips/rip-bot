@@ -35,7 +35,7 @@ Caption by <@{poster_id}>: \"{caption}\"~~
 Removed by <@{remover_id}>."""
 DEATH_MESSAGE_RETRIEVE_TEMPLATE = """<@{dead_person_id}> died on <t:{death_time}:f>!
 Caption by <@{poster_id}>: \"{caption}\""""
-PITCHIE_MESSAGE_TEMPLATE = """New pitchie for <@{poster_id}>: \"{caption}\""""
+PITCHIE_MESSAGE_TEMPLATE = """New {pitchie_type} for <@{poster_id}>: \"{caption}\""""
 REMOVED_PITCHIE_MESSAGE_TEMPLATE = """~~New pitchie for <@{poster_id}>: \"{caption}\"~~
 Removed by <@{remover_id}>."""
 REMOVING_DEATH_IN_PROGRESS_TEMPLATE = """Removing death {death_message_link} for <@{dead_person_id}>."""
@@ -191,6 +191,7 @@ def add_pitchie(req: Any):
         "type": 4,
         "data": {
             "content": PITCHIE_MESSAGE_TEMPLATE.format(
+                pitchie_type=type.name,
                 caption=options["caption"],
                 poster_id=req["member"]["user"]["id"],
             )
