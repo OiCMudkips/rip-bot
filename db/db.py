@@ -151,6 +151,15 @@ def get_death_db(session: Session, guild_id: str, dead_person: str) -> Death:
     return secrets.choice(results)
 
 
+def get_deaths_for_person_db(session: Session, guild_id: str, dead_person: str) -> Sequence[Death]:
+    stmt = (
+        select(Death)
+        .where(Death.server == guild_id, Death.dead_person == dead_person)
+        .order_by(Death.timestamp)
+    )
+    return session.execute(stmt).scalars().all()
+
+
 def get_death_by_message_id_db(session: Session, message_id: str) -> Optional[Death]:
     stmt = select(Death).where(Death.message_id == message_id)
     # a message ID should only correspond to one death (fingers crossed)

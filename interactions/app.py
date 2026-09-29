@@ -40,6 +40,7 @@ REMOVED_PITCHIE_MESSAGE_TEMPLATE = """~~New pitchie for <@{poster_id}>: \"{capti
 Removed by <@{remover_id}>."""
 REMOVING_DEATH_IN_PROGRESS_TEMPLATE = """Removing death {death_message_link} for <@{dead_person_id}>."""
 REMOVING_PITCHIE_IN_PROGRESS_TEMPLATE = """Removing pitchie {pitchie_message_link}."""
+GENERATING_GALLERY_TEMPLATE = """Generating gallery for <@{target_user_id}>..."""
 ERROR_MESSAGE = """rip-bot failed to process the command."""
 
 
@@ -561,10 +562,45 @@ def get_death(req: Any):
         }
     }
 
+def generate_gallery(req: Any):
+    options = convert_options_to_map(req["data"]["options"])
+    target_user_id = options["target-user"]
+
+    log_object = {
+        "event": "generate_gallery_start",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "target_user": target_user_id,
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    app_tasks.start_gallery_workflow.delay(req["guild_id"], target_user_id, req["token"])
+
+    log_object = {
+        "event": "generate_gallery_completed",
+        "guild_id": req["guild_id"],
+        "actor": req["member"]["user"]["id"],
+        "channel": req["channel_id"],
+        "timestamp": time.time(),
+        "target_user": target_user_id,
+    }
+    app.logger.info(python_json.dumps(log_object))
+
+    return {
+        "type": 4,
+        "data": {
+            "content": GENERATING_GALLERY_TEMPLATE.format(target_user_id=target_user_id),
+        }
+    }
+
+
 SlashCommandHandlers: Dict[str, Callable[[Any], Any]] = {
     "add-death": add_death,
     "add-death-beta": add_death_beta,
     "add-pitchie": add_pitchie,
+    "generate-gallery": generate_gallery,
     "get-death": get_death,
     "remove-death": remove_death,
     "remove-pitchie": remove_pitchie,

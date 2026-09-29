@@ -16,6 +16,7 @@ from db.db import (
     get_death_db,
     get_death_tally_db,
     get_death_tally_time_db,
+    get_deaths_for_person_db,
     get_pitchie_by_message_id_db,
     get_pitchie_tally_db,
     get_pitchie_tally_time_db,
@@ -304,6 +305,26 @@ def test_get_death_no_matches_returns_none(session):
     _add_death(session, dead_person="bob")
 
     assert get_death_db(session, "server1", "alice") is None
+
+
+# get_deaths_for_person_db
+
+
+def test_get_deaths_for_person_filters_by_server_and_person(session):
+    first = _add_death(session, dead_person="alice", timestamp=20)
+    second = _add_death(session, dead_person="alice", timestamp=10)
+    _add_death(session, dead_person="bob")
+    _add_death(session, server="server2", dead_person="alice")
+
+    deaths = get_deaths_for_person_db(session, "server1", "alice")
+
+    assert [d.rowid for d in deaths] == [second, first]
+
+
+def test_get_deaths_for_person_no_matches(session):
+    _add_death(session, dead_person="bob")
+
+    assert get_deaths_for_person_db(session, "server1", "alice") == []
 
 
 # get_death_by_message_id_db
