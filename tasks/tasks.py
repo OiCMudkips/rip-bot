@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 import boto3
 import requests
+from betterconf import betterconf, field
 from celery import Celery, Task
 from celery.utils.log import get_task_logger
 
@@ -23,28 +24,33 @@ def _log_task_event(task_name: str, event: str) -> None:
         "event": event,
     }))
 
-CELERY_BROKER = os.getenv("CELERY_BROKER")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+
+@betterconf
+class TasksConfig:
+    CELERY_BROKER: str = field(default=None)
+    CELERY_RESULT_BACKEND: str = field(default=None)
+    # expected to be a JSON object, e.g. {"region": "ca-central-1"}
+    CELERY_BROKER_TRANSPORT_OPTIONS: str = field(default=None)
+    DATABASE_PATH: str = field(default=None)
+    S3_BUCKET: str = field(default=None)
+    DISCORD_BOT_APPLICATION_ID: str = field(default=None)
+    AUTHORIZATION: str = field(default=None)
+
+
+config = TasksConfig()
+
 # just make sure it's defined, we don't need to pass it in below manually
-if not CELERY_RESULT_BACKEND:
+if not config.CELERY_RESULT_BACKEND:
     raise ValueError("Missing CELERY_RESULT_BACKEND value.")
 
-# expected to be a JSON object, e.g. {"region": "ca-central-1"}
-CELERY_BROKER_TRANSPORT_OPTIONS = os.getenv("CELERY_BROKER_TRANSPORT_OPTIONS")
 broker_transport_options = {}
-if CELERY_BROKER_TRANSPORT_OPTIONS:
-    broker_transport_options = json.loads(CELERY_BROKER_TRANSPORT_OPTIONS)
+if config.CELERY_BROKER_TRANSPORT_OPTIONS:
+    broker_transport_options = json.loads(config.CELERY_BROKER_TRANSPORT_OPTIONS)
     if not isinstance(broker_transport_options, dict):
         raise ValueError("CELERY_BROKER_TRANSPORT_OPTIONS must be a JSON object.")
 
-app = Celery("tasks", broker=CELERY_BROKER, broker_transport_options=broker_transport_options)
+app = Celery("tasks", broker=config.CELERY_BROKER, broker_transport_options=broker_transport_options)
 app.conf.worker_cancel_long_running_tasks_on_connection_loss = True # disable warning message in 5.1 <= Celery ver. < 6.0
-
-DATABASE_PATH = os.getenv("DATABASE_PATH")
-S3_BUCKET = os.getenv("S3_BUCKET")
-
-DISCORD_BOT_APPLICATION_ID = os.getenv("DISCORD_BOT_APPLICATION_ID")
-AUTHORIZATION = os.getenv("AUTHORIZATION")
 
 
 @app.task
@@ -61,7 +67,7 @@ def add_death_to_db(
 ) -> int:
     _log_task_event("add_death_to_db", "start")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     rowid = add_death_db(
         session,
@@ -97,7 +103,7 @@ def add_pitchie_to_db(
 ) -> int:
     _log_task_event("add_pitchie_to_db", "start")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     rowid = add_pitchie_db(
         session,
@@ -133,13 +139,13 @@ def download_image_and_upload_to_s3(source_url: str) -> Dict:
     response = requests.get(source_url)
     content_type = response.headers["content-type"]
 
-    s3.Bucket(S3_BUCKET).put_object(
+    s3.Bucket(config.S3_BUCKET).put_object(
         Key=key,
         Body=response.content,
         ContentType=content_type,
     )
     
-    s3_url = f"https://{S3_BUCKET}.s3.ca-central-1.amazonaws.com/{key}"
+    s3_url = f"https://{config.S3_BUCKET}.s3.ca-central-1.amazonaws.com/{key}"
 
     _log_task_event("download_image_and_upload_to_s3", "end")
 
@@ -176,7 +182,7 @@ def update_database_with_image(input: Dict):
     if not s3_url:
         raise ValueError("missing image field")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     update_death_image_url_db(session, rowid, s3_url)
     session.commit()
@@ -199,7 +205,7 @@ def update_database_with_pitchie_image(input: Dict):
     if not s3_url:
         raise ValueError("missing image field")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     update_pitchie_image_url_db(session, rowid, s3_url)
     session.commit()
@@ -227,11 +233,11 @@ def update_interaction_with_image(input: Dict):
     image_content = requests.get(s3_url).content
 
     response = requests.patch(
-        f"https://discord.com/api/v10/webhooks/{DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
+        f"https://discord.com/api/v10/webhooks/{config.DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
         json={
             "attachments": [{"id": 0}]
         },
-        headers={"Authorization": AUTHORIZATION},
+        headers={"Authorization": config.AUTHORIZATION},
         files={
             "files[0]": (file_name, image_content, file_content_type),
         },
@@ -253,14 +259,14 @@ def update_database_with_message_id(input: Dict):
         raise ValueError("missing argument")
 
     response = requests.get(
-        f"https://discord.com/api/v10/webhooks/{DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
-        headers={"Authorization": AUTHORIZATION},
+        f"https://discord.com/api/v10/webhooks/{config.DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
+        headers={"Authorization": config.AUTHORIZATION},
     )
 
     response.raise_for_status()
     message = response.json()
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     update_death_message_id_db(session, rowid, message["id"])
     session.commit()
@@ -280,14 +286,14 @@ def update_database_with_pitchie_message_id(input: Dict):
         raise ValueError("missing argument")
 
     response = requests.get(
-        f"https://discord.com/api/v10/webhooks/{DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
-        headers={"Authorization": AUTHORIZATION},
+        f"https://discord.com/api/v10/webhooks/{config.DISCORD_BOT_APPLICATION_ID}/{interaction_token}/messages/@original",
+        headers={"Authorization": config.AUTHORIZATION},
     )
 
     response.raise_for_status()
     message = response.json()
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     update_pitchie_message_id_db(session, rowid, message["id"])
     session.commit()
@@ -300,7 +306,7 @@ def update_database_with_pitchie_message_id(input: Dict):
 def delete_from_database(rowid: str):
     _log_task_event("delete_from_database", "start")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     delete_death_db(session, rowid)
     session.commit()
@@ -313,7 +319,7 @@ def delete_from_database(rowid: str):
 def delete_pitchie_from_database(rowid: str):
     _log_task_event("delete_pitchie_from_database", "start")
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     delete_pitchie_db(session, rowid)
     session.commit()
@@ -331,7 +337,7 @@ def update_message_content(channel_id: str, message_id: str, new_content: str):
         json={
             "content": new_content,
         },
-        headers={"Authorization": AUTHORIZATION},
+        headers={"Authorization": config.AUTHORIZATION},
     )
 
     response.raise_for_status()
