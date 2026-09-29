@@ -1,0 +1,14 @@
+{
+    "name": "generate-gallery",
+    "description": "Generates a gallery of all of a user's deaths",
+    "options": [
+        {
+            "type": 6,
+            "name": "target-user",
+            "description": "Your friend whose deaths you want to see",
+            "required": true
+        }
+    ],
+    "default_member_permissions": 2048,
+    "dm_permission": false
+}

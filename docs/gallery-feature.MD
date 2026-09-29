@@ -7,24 +7,12 @@
 ## Existing backend features
 
 * DB has list of deaths, who reported it, who died, S3 url for full image of death.
-* Full DB schema for deaths:
-```
-CREATE TABLE "deaths" (
-	"server"	TEXT NOT NULL,
-	"channel_id"	TEXT NOT NULL,
-	"message_id"	TEXT NOT NULL,
-	"dead_person"	TEXT NOT NULL,
-	"caption"	TEXT NOT NULL,
-	"attachment"	TEXT NOT NULL,
-	"image_url"	TEXT NOT NULL,
-	"timestamp"	INTEGER NOT NULL,
-	"reporter"	TEXT NOT NULL
-)
-```
+* Full DB schema for deaths is in db/db.py
 
 ## Constraints
 
- * Use `python` requests library for all API requests
+ * Use python `requests` library for all API requests
+ * Use `config.AUTHORIZATION` for all Discord API requests in tasks/tasks.py (it is our Discord app's token)
 
 ## Idea
 
@@ -42,7 +30,7 @@ CREATE TABLE "deaths" (
         * Dynamically build and dispatch (via `Task.replace()`) the following canvas:
             1. A task to get the target user's display name and profile picture (`is_target_user = true`), queued and run to completion first, before any reporter lookups are dispatched. This guarantees the target user's info is retrieved before anything else runs, and means that if this task fails, the chain aborts and no reporter lookup tasks are ever created or dispatched — satisfying the "cancel the whole command" requirement below without needing to revoke any in-flight tasks.
             2. Only once the target user's task has succeeded, dynamically build and dispatch (again via `Task.replace()`) a Celery `chord`: a `group` containing one task per unique reporter to get their display name (`is_target_user = false`), with the gallery-generation task (step 3) as the chord's callback, so step 3 only runs once every reporter lookup has completed (or failed/timed out)
-        * All user-info retrieval tasks (both the target user's and every reporter's) are given a Celery time limit of 10 minutes, so the reporter group cannot run long enough to risk expiring the 15-minute Discord interaction token before steps 3 and 4 get a chance to run
+        * All user-info retrieval tasks (both the target user's and every reporter's) are given a Celery time limit of 5 minutes, so the reporter group cannot run long enough to risk expiring the 15-minute Discord interaction token before steps 3 and 4 get a chance to run
     2. User's guild display name and profile picture
         * Task input: `guild_id` (str), `user_id` (str), `is_target_user` (bool)
         * Retrieve user's current guild display name (fallback to global name, then fallback to username), and if `is_target_user = true`, their profile picture hash, using Discord API
@@ -55,10 +43,8 @@ CREATE TABLE "deaths" (
                 * Use Discord's image formatting URLs to ensure that downloaded image is a png and sized 256 x 256 pixels
                 * As described in https://docs.discord.com/developers/reference#image-formatting
             * Upload it to the S3 bucket defined by environment variable `S3_BUCKET_USER_PROFILE_PICTURES`, keyed by a random string (i.e. `${random_string}.png`), with public-read access so the object is reachable via a public HTTPS URL
-        * TODO: figure out auth
-        * If retrieval of updated information fails or times out (see 10 minute time limit above) and `is_target_user = true`, return an error to cancel the whole command
-        * If retrieval of updated information fails or times out and `is_target_user = false`, return placeholder info
-            * "Unknown user" as the display name string
+        * If retrieval of updated information fails or times out (see 5 minute time limit above) and `is_target_user = true`, return an error to cancel the whole command
+        * If retrieval of updated information fails or times out and `is_target_user = false`, return "Unknown user" as the display name string
         * Return as task output: user id, display name (or fallback), profile picture's public S3 URL (nullable)
     3. Generate an HTML gallery page that shows all the images
         * Build a mapping of user id -> display name from the combined output of step 2's tasks (the target user's task output, plus every reporter's task output from the chord's group results); for each death from step 1, look up its `reporter` id in this mapping to get the display name shown in the modal
