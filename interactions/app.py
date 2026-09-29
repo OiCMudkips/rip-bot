@@ -1,13 +1,13 @@
 import itertools
 import logging
 import json as python_json
-import os
 import time
 import traceback
 from numbers import Number
 from typing import Any, Callable, Dict, List, Tuple, Optional
 from urllib.parse import urlparse
 
+from betterconf import betterconf, field
 from flask import Flask, json, request
 from discord_interactions import verify_key_decorator
 from celery import group
@@ -19,8 +19,14 @@ from db.db import get_death_tally_db, get_death_tally_time_db, get_death_db, get
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 
-RIP_BOT_PUBLIC_KEY = os.getenv("RIP_BOT_PUBLIC_KEY")
-DATABASE_PATH = os.getenv("DATABASE_PATH")
+
+@betterconf
+class AppConfig:
+    RIP_BOT_PUBLIC_KEY: str = field(default=None)
+    DATABASE_PATH: str = field(default=None)
+
+
+config = AppConfig()
 
 DEATH_MESSAGE_TEMPLATE = """<@{dead_person_id}> died!
 Caption by <@{poster_id}>: \"{caption}\""""
@@ -225,7 +231,7 @@ def remove_death(req: Any):
             }
         }
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     death = get_death_by_message_id_db(session, message_id)
     session.close()
@@ -311,7 +317,7 @@ def remove_pitchie(req: Any):
             }
         }
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     pitchie = get_pitchie_by_message_id_db(session, message_id)
     session.close()
@@ -375,7 +381,7 @@ def tally_deaths(req: Any):
     }
     app.logger.info(python_json.dumps(log_object))
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     if start_time and end_time:
         try:
@@ -448,7 +454,7 @@ def tally_pitchies(req: Any):
     }
     app.logger.info(python_json.dumps(log_object))
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
 
     if start_time and end_time:
         try:
@@ -533,7 +539,7 @@ def tally_pitchies(req: Any):
 def get_death(req: Any):
     options = convert_options_to_map(req["data"]["options"])
 
-    session = connect_to_database(DATABASE_PATH)
+    session = connect_to_database(config.DATABASE_PATH)
     result = get_death_db(session, req["guild_id"], options["dead-person"])
     session.close()
 
@@ -576,7 +582,7 @@ InteractionsHandlers: Dict[Number, Callable[[Any], Any]] = {
 }
 
 @app.post("/interactions")
-@verify_key_decorator(RIP_BOT_PUBLIC_KEY)
+@verify_key_decorator(config.RIP_BOT_PUBLIC_KEY)
 def interactions_post():
     try:
         request_body = request.get_json()

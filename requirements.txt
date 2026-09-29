@@ -5,3 +5,4 @@ celery[sqs]
 requests
 boto3
 SQLAlchemy>=2.0
+betterconf
